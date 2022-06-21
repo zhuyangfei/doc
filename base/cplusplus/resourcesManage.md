@@ -222,3 +222,118 @@ unique_ptr概念简单，更容易知道什么时候析构，同时，也更快�
     void thinko(const unique_ptr<widget>&); // usually not what you want
 ### 注：
 使用`shared_ptr`作为参数时，有同样类似的规则。当函数需要共享所有权时，才使用。
+
+# unique_ptr
+智能指针`unique_ptr`，通过一个指针拥有并管理另外一个对象，当`unique_ptr`离开`scope`时，释放对象。
+## 释放所管理对象的情形：
+1. `unique_ptr`对象析构
+2. `unique_ptr`对象被赋值给另一个指针通过`operator=`或者`reset()`
+## 使用场景
+1. 为类对象及包含资源清理的函数，提供`exception`安全的释放资源的保证
+2. 传递对象（具有动态生命周期）的唯一所有权（`ownership`）给函数
+3. 通过函数的返回值，获取对象的所有权
+4. 作为容器的元素指向动态分配的对象
+## note
+1. `unique_ptr`删除了`拷贝构造`及`拷贝赋值`, 只支持`移动构造`与`移动赋值`
+2. 只有`non-const`的`unique_ptr`能转移所有权，`const unique_ptr`限定了`所管理的对象`生命周期在`unique_ptr`创建的范围。举例：
+   ```c++
+    #include <cassert>
+    #include <cstdio>
+    #include <fstream>
+    #include <iostream>
+    #include <memory>
+    #include <stdexcept>
+
+    // helper class for runtime polymorphism demo below
+    struct B
+    {
+        virtual ~B() = default;
+
+        virtual void bar() { std::cout << "B::bar\n"; }
+    };
+
+    struct D : B
+    {
+        D() { std::cout << "D::D\n"; }
+        ~D() { std::cout << "D::~D\n"; }
+
+        void bar() override { std::cout << "D::bar\n"; }
+    };
+
+    // a function consuming a unique_ptr can take it by value or by rvalue reference
+    std::unique_ptr<D> pass_through(std::unique_ptr<D> p)
+    {
+        p->bar();
+        return p;
+    }
+
+    void noOwnershipTransfer(const std::unique_ptr<D>& p)
+    {
+        p->bar();
+        // const std::unique_ptr<D> q = std::move(p);  compile error as the operator is deleted.
+    }
+
+    void ownershipTransferInFunc(std::unique_ptr<D>& p)
+    {
+        p->bar();
+        const std::unique_ptr<D> q = std::move(p);
+    }
+
+    int main()
+    {
+        std::cout << "1) Unique ownership semantics demo\n";
+        {
+            // Create a (uniquely owned) resource
+            std::unique_ptr<D> p = std::make_unique<D>();
+
+            // Transfer ownership to `pass_through`,
+            // which in turn transfers ownership back through the return value
+            std::unique_ptr<D> q = pass_through(std::move(p));
+
+            // `p` is now in a moved-from 'empty' state, equal to `nullptr`
+            assert(!p);
+        }
+
+        std::cout << "\n" "1.1) Unique ownership semantics demo\n";
+        {
+            // Create a derived resource and point to it via base type
+            const std::unique_ptr<D> p = std::make_unique<D>();
+
+            noOwnershipTransfer(p);
+            std::cout << "noOwnershipTransfer end\n";
+
+        }
+
+        std::cout << "\n" "1.2) Unique ownership semantics demo\n";
+        {
+            // Create a derived resource and point to it via base type
+            std::unique_ptr<D> p = std::make_unique<D>();
+
+            ownershipTransferInFunc(p);
+            std::cout << "ownershipTransferInFunc end\n";
+        }
+    }
+
+   ```
+   ```
+    // 执行结果
+    1) Unique ownership semantics demo
+    D::D
+    D::bar
+    D::~D
+
+    1.1) Unique ownership semantics demo
+    D::D
+    D::bar
+    noOwnershipTransfer end
+    D::~D
+
+    1.2) Unique ownership semantics demo
+    D::D
+    D::bar
+    D::~D
+    ownershipTransferInFunc end
+    ```
+3. 定义`std::unique_ptr<D>`，会隐式的转换成`std::unique_ptr<B>`（D继承与B)。`unique_ptr`使用`B`的delete进行析构，所以，如果`B`的析构为非虚的，那么会导致未定义的行为。shared_ptr<B>使用`D`的delete(即使B析构为非虚的函数)，所以不会存在问题。
+## REF
+[unique_ptr](https://en.cppreference.com/w/cpp/memory/unique_ptr)
