@@ -74,7 +74,7 @@ global对象，作用域全局地，生命周期同程序。
         Gadget gadget{n};
         // ...
     }
-``` 
+```
 ## R3. 一个裸指针（T*）不是一个资源的`拥有者`
 ### 为什么
 裸指针（T*）一般都不是资源的拥有者，而我们需要一个明确的资源拥有者，这样我们才能可靠并有效的释放指针所指向的对象
@@ -82,7 +82,7 @@ global对象，作用域全局地，生命周期同程序。
     void func()
     {
         int* p = new int(1);        // 不好，裸指针拥有对象
-        auto p2 = make_unique<int>(7);      //好，int 被unique pointer拥有 
+        auto p2 = make_unique<int>(7);      //好，int 被unique pointer拥有
     }
 ### 例外
 
@@ -207,7 +207,7 @@ unique_ptr概念简单，更容易知道什么时候析构，同时，也更快�
     f(*my_widget);
 
     widget stack_widget;
-    f(stack_widget); // ok -- now this works   
+    f(stack_widget); // ok -- now this works
 
 ## R12. 在函数中需要重置`widget`时，才使用`unique_ptr<widget>`作为参数
 ### 为什么
