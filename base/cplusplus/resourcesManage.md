@@ -223,6 +223,48 @@ unique_ptr概念简单，更容易知道什么时候析构，同时，也更快�
 ### 注：
 使用`shared_ptr`作为参数时，有同样类似的规则。当函数需要共享所有权时，才使用。
 
+## R13. 不要传递从一个智能指针的别名获取指针或者引用
+### 为什么
+违反这条规则，导致丢失引用计数及空悬指针的第一大原因。
+调用者，通过智能指针，来获取指针或者引用，要保证`object`对象活着。同时，确保智能指针不会在底层的调用链上被无意的`reset`或者`重新赋值`。
+### 注：
+通过把智能指针，拷贝给一个本地临时的智能指针变量，能解决上面的问题。临时的智能指针，保证了对象不会被释放。
+### 例子：
+```c++
+shared_ptr<widget> g_p = ...;
+
+void func(widget& w)
+{
+    g();
+    use(w);
+}
+
+void g()
+{
+    g_p = ...;    // if this was the last shared_ptr to the widget, destorys the widget
+}
+
+void my_code()
+{
+    // bad, the widget will be destoryed, when call g();
+    // so error happens when the use() was called.
+    func(*g_p);
+
+    // bad the widget is destoryed.
+    g_p->func2();
+}
+
+// to fix this problem
+void my_code()
+{
+    // copy to a local variable to keep object alive
+    auto localgp = g_p;
+    func(*localgp);
+
+    localgp->func2();
+}
+```
+
 # unique_ptr
 智能指针`unique_ptr`，通过一个指针拥有并管理另外一个对象，当`unique_ptr`离开`scope`时，释放对象。
 ## 释放所管理对象的情形：
