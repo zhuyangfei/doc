@@ -53,6 +53,174 @@ Port对象，是一个简便的资源封装对象
         Port& operator=(const Port&) = delete;
     };
 ```
+### 注：
+1. 任何需要`成对使用的函数`，比如，`AaSysComMsgReceive()`与`AaSysComUserDeregister()`，使用者，都可以/应该封装到一个资源管理类。
+2. 任何类的设计者，如果设计提供类似`init()`与`uninit()`，需要配对使用的接口，都应该删掉这两个接口，而把功能移到构造与析构中。
+### 举例
+```c++
+// bad example
+static int sysComGWAddRoutes()
+{
+    void *addRouteInfoReqMsg = NULL;
+    void *addRouteInfoReplyMsg = NULL;
+
+    TAaSysComCpid testCpid = AaSysComEuUserRegister(AASYSCOM_CP_INVALID);
+    if(AASYSCOM_CP_INVALID == testCpid)
+    {
+        printf("syscom user register failed. \n");
+        return FAILED;
+    }
+
+    TAaSysComSicad testSicaddr = AaSysComSicadGet(testCpid, AaSysComGetOwnNid());
+    addRouteInfoReqMsg = AaSysComMsgCreate(AASYSCOM_GW_REG_EXT_REQ_MSG, (TAaSysComMsgSize)(sizeof(AaSysComGwRegReqExt)),\
+                                              AaSysComSicadGet(AASYSCOM_GW_CPID, AaSysComGetOwnNid()));
+    if(NULL == addRouteInfoReqMsg)
+    {
+        printf("message creation for adding the route failed. \n");
+        AaSysComUserDeregister(testCpid);       // need to call AaSysComUserDeregister in every branch
+        return FAILED;
+    }
+
+    AaSysComGwRegReqExt *reqMsg = (AaSysComGwRegReqExt *)AaSysComMsgGetPayload(addRouteInfoReqMsg);
+    if (NULL == reqMsg)
+    {
+        printf("failed to get message payload. \n");
+        AaSysComUserDeregister(testCpid);
+        AaSysComMsgDestroy(&addRouteInfoReqMsg);
+        return FAILED;
+    }
+    ...
+    //receive message
+    addRouteInfoReplyMsg = AaSysComMsgReceive(1000 * 1000);
+    if((NULL == addRouteInfoReplyMsg) || (AASYSCOM_GW_REG_EXT_REPLY_MSG != AaSysComMsgGetId(addRouteInfoReplyMsg)))
+    {
+        printf("add route info replay not received in expected timefram. \n");
+        AaSysComMsgDestroy(&addRouteInfoReplyMsg);
+        AaSysComUserDeregister(testCpid);
+        return FAILED;
+    }
+
+    AaSysComGwRegReplyExt *replyMsg = (AaSysComGwRegReplyExt *)AaSysComMsgGetPayload(addRouteInfoReplyMsg);
+    if(EAaSysComGwStatus_RouteAlreadyExists == replyMsg->status)
+    {
+        printf("the route, routeid: %d already exit. \n", replyMsg->routeId);
+        AaSysComMsgDestroy(&addRouteInfoReplyMsg);
+        AaSysComUserDeregister(testCpid);
+        return FAILED;
+    }else if(EAaSysComGwStatus_OK == replyMsg->status)
+    {
+        printf("the route, routeid: %d registration is succesful. \n", replyMsg->routeId);
+        AaSysComMsgDestroy(&addRouteInfoReplyMsg);
+        AaSysComUserDeregister(testCpid);
+        return SUCCESS;
+    }else
+    {
+        printf("the route registration failed with status, %d.\n", replyMsg->status);
+        AaSysComMsgDestroy(&addRouteInfoReplyMsg);
+        AaSysComUserDeregister(testCpid);
+        return FAILED;
+    }
+}
+```
+使用者需要在每一个分支上，都调用`AaSysComUserDeregister`。代码的bug率很高，可维护性很差。
+```c++
+// good example
+RannicInfoReceiver::RannicInfoReceiver(const Library& syscom, const RannicRoute& rannicRoute)
+    : m_syscom(syscom),
+    m_rannicRoute(rannicRoute)
+{
+    if (RannicReceiverCpid != m_syscom.AaSysComEuUserRegister(RannicReceiverCpid)){
+        throw SyscomEuRegisterFailed(RannicReceiverCpid);
+    }
+}
+
+RannicInfoReceiver::~RannicInfoReceiver()
+{
+    m_syscom.AaSysComUserDeregister(RannicReceiverCpid);
+}
+
+RannicInfoReceiver::SyscomEuRegisterFailed::SyscomEuRegisterFailed(TAaSysComCpid cpid)
+     : std::runtime_error(buildSyscomEuRegisterFailedError(cpid))
+{
+}
+
+std::string buildSyscomEuRegisterFailedError(TAaSysComCpid cpid)
+{
+    std::ostringstream os;
+    os << "syscom user register failed, cpid = 0x" << std::hex << cpid;
+    return os.str();
+}
+
+```
+### 举例
+```c++
+// bad example
+// class Library design, user need to call init() firstly, and call uninit() before object destory.
+class Library
+{
+public:
+    Library();
+    virtual ~Library();
+    virtual int init(const char* msgLibPath, const char* ccsLibPath, bool isMCU);
+    virtual void uninit(void);
+}
+
+// application code
+int main(int argc, char **argv)
+{
+    syslog(LOG_INFO, "++--SysCom Route Proxy start!--++");
+    //1. msg and ccs shared library init
+    //1. check parameter.
+    // note: in parseParametersAndChooseLib, user new a Library object and call Library.init()
+    std::unique_ptr<Library> plib = CommonUtility::parseParametersAndChooseLib(argc, argv);
+    if (!plib)
+    {
+        return -1;
+    }
+
+    Library& lib = *plib.get();
+    syslog(LOG_INFO, "set process name");
+    auto ret_prctl = prctl(PR_SET_NAME, SYSCOM_ROUTE_PROXY, 0, 0, 0, 0);
+    if(0 != ret_prctl)
+    {
+        // note: resource leak, as user forget to call lib.uninit()
+        syslog(LOG_ERR, "set process name failure: %d", ret_prctl);
+        return -3;
+    }
+    // ...
+    lib.uninit();
+    syslog(LOG_INFO, "++--SysCom Route Proxy end, bye bye!--++");
+    return 0;
+}
+```
+使用者，非常容易遗忘调用`lib.uninit()`，而导致资源泄漏。
+``` c++
+// good example
+class Library
+{
+public:
+    Library(const char* msgLibPath, const char* ccsLibPath, bool isMCU);
+    virtual ~Library();
+}
+
+//application code
+int main(int argc, char **argv)
+{
+    syslog(LOG_INFO, "++--SysCom Route Proxy start!--++");
+    Library plib;    // no more resource leak
+
+    syslog(LOG_INFO, "set process name");
+    auto ret_prctl = prctl(PR_SET_NAME, SYSCOM_ROUTE_PROXY, 0, 0, 0, 0);
+    if(0 != ret_prctl)
+    {
+        syslog(LOG_ERR, "set process name failure: %d", ret_prctl);
+        return -3;
+    }
+    // ...
+    syslog(LOG_INFO, "++--SysCom Route Proxy end, bye bye!--++");
+    return 0;
+}
+```
 ## R2. 优先选择`域对象`（scoped object），避免不必要的heap对象（heap-allocated）
 ### `scoped object`
 scoped object是local 对象，a global对象或者成员对象。
