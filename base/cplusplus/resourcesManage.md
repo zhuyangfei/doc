@@ -391,7 +391,7 @@ unique_ptr概念简单，更容易知道什么时候析构，同时，也更快�
 ### 注：
 使用`shared_ptr`作为参数时，有同样类似的规则。当函数需要共享所有权时，才使用。
 
-## R13. 不要传递从一个智能指针的别名获取指针或者引用
+## R13. 不要传递从一个智能指针的别名获取指针或者引用, // todo
 ### 为什么
 违反这条规则，导致丢失引用计数及空悬指针的第一大原因。
 调用者，通过智能指针，来获取指针或者引用，要保证`object`对象活着。同时，确保智能指针不会在底层的调用链上被无意的`reset`或者`重新赋值`。
@@ -404,21 +404,21 @@ shared_ptr<widget> g_p = ...;
 void func(widget& w)
 {
     g();
-    use(w);
+    use(w);         // error w is destroyed.
 }
 
 void g()
 {
-    g_p = ...;    // if this was the last shared_ptr to the widget, destorys the widget
+    g_p = ...;    // if this was the last shared_ptr to the widget, destroys the widget
 }
 
 void my_code()
 {
-    // bad, the widget will be destoryed, when call g();
+    // bad, the widget will be destroyed, when call g();
     // so error happens when the use() was called.
     func(*g_p);
 
-    // bad the widget is destoryed.
+    // bad the widget is destroyed.
     g_p->func2();
 }
 
@@ -431,6 +431,44 @@ void my_code()
 
     localgp->func2();
 }
+```
+### 例子
+```c++
+struct B
+{
+    virtual ~B() = default;
+
+    virtual void bar() { std::cout << "this " << this << " B::bar\n"; }
+};
+
+struct D : B
+{
+    D() { std::cout << "D::D\n"; }
+    ~D() { std::cout << "D::~D\n"; }
+
+    void bar() override { std::cout << "this " << this << " D::bar\n"; }
+};
+
+void func(std::shared_ptr<B>& b)
+{
+    b->bar();
+    b = std::make_shared<B>();
+}
+
+int main()
+{
+    std::shared_ptr<B> b = std::make_shared<D>();
+
+    func(b);    // this has been destroyed.
+
+    b->bar();   // this is different from previous.
+}
+// the execute result
+D::D
+this 0x5622500d1ec0 D::bar
+D::~D
+this 0x5622500d22f0 B::bar
+
 ```
 
 # unique_ptr
