@@ -1,7 +1,7 @@
 # split commit
-- 1. 调整commits结构
-   通过`git rebase`，把需要split的commit，调整到`当前编辑`的状态。如：
-   git rebase -i HEAD~2，// 第2个commit重新编辑
+- **step1**. 调整commits结构
+   通过`git rebase`，把需要split的commit，调整到`当前编辑`状态。如：倒数第二个单子，需要split。`rebase`时，把单子由`pick`改成`e(edit)`，如下：
+   git rebase -i HEAD~2，
     ```
         e 4b7e78e Add an empty syscomrannicprovider process
         pick dc903c3 Start up syscomrannicprovider by ministarter
@@ -10,7 +10,12 @@
         #
         # Commands:
     ```
-- 2. 回退当前commit
+    `rebase`后，`HEAD`就指向了倒数第二个单子。
+    注：
+    1. `4b7e78e`对应第二个单子
+    2. 如拆分最后一个单子，那么可以省略这个步骤
+    3. 如果多个单子需要拆分，那么把对应的单子都修改成`edit`
+- **step2**. 回退当前commit
    通过`git reset HEAD~1`, 回退当前commit,
     git reset HEAD~1
     ```
@@ -18,8 +23,8 @@
         M       Makefile.am
         M       configure.ac
     ```
-    该commit的改动，就都处在了没有`commit`的状态了。如：
-    git staus
+    该commit的改动，就都处在`没有commit状态`。如：
+    git status
     ```
     Changes not staged for commit:
       (use "git add <file>..." to update what will be committed)
@@ -27,7 +32,7 @@
             modified:   Makefile.am
             modified:   configure.ac
     ```
-- 3. 拆分commit
+- **step3**. 拆分commit
    通过`git add -p filename`，选择性的进行commit，如：
     git add -p Makefile.am
     ```
@@ -61,11 +66,10 @@
 ## note
 1. (1/3): 表示`Makefile.am`改动被分成了3块
 2. 命令[y,n,q,a,d,j,J,g,/,e,?]，参考：[git-add](https://git-scm.com/docs/git-add)
-3. `新增`的文件，直接修改文件，拆除想要的修改
-# 
-- 4. 提交commit
+3. `新增`的文件，直接修改文件，分几次提交
+- **step4**. 提交commit
    `git commit -e`
-- 5. 重复步骤4，5，提交所有改动，然年，继续rebase，`git rebase --continue`
+- **step5**. 重复步骤4，5，直到所有改动都提交，然后，继续rebase，`git rebase --continue`
 ## note
-1. 使用`gerrite`工具，需要替换commit`changeID`，这样原单子的就不会被`abandon`了
+1. 使用`gerrite`工具，需要替换commit`changeID`，这样原单子的就不会被`abandon`了。修改方法，`git commit --amend`。
 
