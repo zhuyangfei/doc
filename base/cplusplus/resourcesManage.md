@@ -1,16 +1,16 @@
 # 资源管理
-资源管理的基本目标是不泄漏资源及不拥有资源超过需要的时间
+资源管理的基本目标是不泄漏资源和及时释放资源(不超过需要拥有的时间)
 资源的拥有者负责释放资源
 ## `资源`
 `资源`是任何需要**获取并释放**的对象，比如file handler, memory, socket, lock.
 ## R1. 通过`资源handles`及`RAII`来自动的管理资源
 ### `资源handles`
-`资源handles`是利用C++语言的`构造`与`析构`的强制性与成对性来管理资源，即在构造时，获取资源，在析构时，释放资源。
+`资源handles`是利用C++的`构造`与`析构`的强制性与成对性来管理资源，即在构造时，获取资源，在析构时，释放资源。
 ### `RAII`
 resource acquisition is initialization, 即资源申请后，立即赋值给资源管理对象（`资源handles`）
 ### 为什么
 避免资源泄漏及复杂地、手动地管理资源。C++强制的构造与析构对象，很好的配对资源的获取与释放函数，比如，fopen/fclose,
-lock/unlock, 及 new/delete。**在调用资源的获取及释放函数的任何时候，都应该把这两个操作，封装到一个对象的构造与析构中**。
+lock/unlock, 及 new/delete。**任何时候，调用资源的获取及释放函数，都应该把这两个操作，封装到一个对象的构造与析构中**。
 ### 举例，bad
 ```c plus plus
     void send(X* x, string_view destination)
@@ -37,8 +37,8 @@ lock/unlock, 及 new/delete。**在调用资源的获取及释放函数的任何
         // ...
     } // automatically close_port, unlock, and delete the pointer x
 ```
-这样所有的资源清理都是自动进行，同时，无论是否有异常发生，都只执行一次。
-Port对象，是一个简便的资源封装对象
+这样，所有资源清理都是自动进行，同时，无论是否有异常发生，都只执行一次。
+`Port对象`，是一个简便的`资源handle对象`，实现代码如下：
 ```c++
     class Port
     {
@@ -54,11 +54,12 @@ Port对象，是一个简便的资源封装对象
     };
 ```
 ### 注：
-1. 任何需要`成对使用的函数`，比如，`AaSysComMsgReceive()`与`AaSysComUserDeregister()`，使用者，都可以/应该封装到一个资源管理类。
-2. 任何类的设计者，如果设计提供类似`init()`与`uninit()`，需要配对使用的接口，都应该删掉这两个接口，而把功能移到构造与析构中。
+1. 任何需要`成对使用的函数`，比如，`AaSysComMsgReceive()`与`AaSysComUserDeregister()`，使用者，都可以/应该封装到一个资源管理(资源handle)类。
+2. 设计类时，如果提供`需要用户配对使用的接口`，如：`init()`与`uninit()`，那么就不是一个好的设计。把对应的功能移到构造与析构中，是一个更好的设计。
 ### 举例
 ```c++
-// bad example
+// application code
+// bad example, not use resource handler to manage AaSysComEuUserRegister and AaSysComUserDeregister
 static int sysComGWAddRoutes()
 {
     void *addRouteInfoReqMsg = NULL;
@@ -150,12 +151,13 @@ std::string buildSyscomEuRegisterFailedError(TAaSysComCpid cpid)
     os << "syscom user register failed, cpid = 0x" << std::hex << cpid;
     return os.str();
 }
-
 ```
 ### 举例
 ```c++
 // bad example
-// class Library design, user need to call init() firstly, and call uninit() before object destory.
+/** class Library design
+* @ note: user need to call init() before using, and call uninit() before object destroy.
+*/
 class Library
 {
 public:
@@ -168,9 +170,6 @@ public:
 // application code
 int main(int argc, char **argv)
 {
-    syslog(LOG_INFO, "++--SysCom Route Proxy start!--++");
-    //1. msg and ccs shared library init
-    //1. check parameter.
     // note: in parseParametersAndChooseLib, user new a Library object and call Library.init()
     std::unique_ptr<Library> plib = CommonUtility::parseParametersAndChooseLib(argc, argv);
     if (!plib)
@@ -179,7 +178,7 @@ int main(int argc, char **argv)
     }
 
     Library& lib = *plib.get();
-    syslog(LOG_INFO, "set process name");
+    ...
     auto ret_prctl = prctl(PR_SET_NAME, SYSCOM_ROUTE_PROXY, 0, 0, 0, 0);
     if(0 != ret_prctl)
     {
@@ -187,9 +186,8 @@ int main(int argc, char **argv)
         syslog(LOG_ERR, "set process name failure: %d", ret_prctl);
         return -3;
     }
-    // ...
+    ...
     lib.uninit();
-    syslog(LOG_INFO, "++--SysCom Route Proxy end, bye bye!--++");
     return 0;
 }
 ```
@@ -206,18 +204,15 @@ public:
 //application code
 int main(int argc, char **argv)
 {
-    syslog(LOG_INFO, "++--SysCom Route Proxy start!--++");
     Library plib;    // no more resource leak
-
-    syslog(LOG_INFO, "set process name");
+    ...
     auto ret_prctl = prctl(PR_SET_NAME, SYSCOM_ROUTE_PROXY, 0, 0, 0, 0);
     if(0 != ret_prctl)
     {
         syslog(LOG_ERR, "set process name failure: %d", ret_prctl);
         return -3;
     }
-    // ...
-    syslog(LOG_INFO, "++--SysCom Route Proxy end, bye bye!--++");
+    ...
     return 0;
 }
 ```
@@ -246,29 +241,140 @@ global对象，作用域全局地，生命周期同程序。
 ## R3. 一个裸指针（T*）不是一个资源的`拥有者`
 ### 为什么
 裸指针（T*）一般都不是资源的拥有者，而我们需要一个明确的资源拥有者，这样我们才能可靠并有效的释放指针所指向的对象
-###
+### 举例
     void func()
     {
-        int* p = new int(1);        // 不好，裸指针拥有对象
-        auto p2 = make_unique<int>(7);      //好，int 被unique pointer拥有
+        int* p = new int(1);        // bad: raw owning pointer
+        auto p2 = make_unique<int>(7);      // OK: the int is owned by a unique pointer
+        ...
     }
-### 例外
+即使发生`exception`, `unique_ptr`也能保证释放对象`P`,而避免的资源泄漏。`T*`类型不能。
+### 举例
+    template<typename T>
+    class X {
+    public:
+        T* p;   // bad: it is unclear whether p is owning or not
+        T* q;   // bad: it is unclear whether q is owning or not
+        // ...
+    };
+
+    We can fix that problem by making ownership explicit:
+
+    template<typename T>
+    class X2 {
+    public:
+        owner<T*> p;  // OK: p is owning
+        T* q;         // OK: q is not owning
+        // ...
+    };
+### 注
+很多`legacy`代码，尤其是哪些一定要兼容`C`或者`C interface`或者`C 风格`的`ABI`，都违反了不用`T*`表示资源拥有者的规则。其中一些`T*`是，大部分不是，因此，不能使用工具，统一的转成`owner<T*>`类型。
+
+### 举例
+对调用者而言，返回一个裸指针暗含着生命周期管理的不确定性，即谁负责对象的释放。
+```c++
+// bad
+Gadget* make_gadget(int n)
+{
+    auto p = new Gadget{n};
+    // ...
+    return p;
+}
+void caller(int n)
+{
+    auto p = make_gadget(n);   // remember to delete p
+    // ...
+    delete p;
+}
+```
+一个有效的方式是，用返回值替代，如：
+```c++
+// good example
+Gadget make_gadget(int n)
+{
+    Gadget g{n};
+    // ...
+    return g;
+}
+```
+### 注
+对工厂方法同样适用这条规则
+### 例子
+```cpp
+namespace genapi
+{
+    class GenAPI: public GenAPIEventLoop
+    {
+    public:
+        ...
+        /**
+         * Create a new instance of GenAPI.
+         *
+         * @return New instance of GenAPI.
+         */
+        static std::shared_ptr<GenAPI> create();
+
+    protected:
+        GenAPI() = default;
+    };
+}
+std::shared_ptr<GenAPI> GenAPI::create()
+{
+    auto engine(std::make_shared<Engine>(System::getSystem()));
+    // Ensure that EventFD (callback queue) exists and has been added to epoll set
+    engine->getCallbackQueue();
+    return engine;
+}
+```
+### 同样的`T&`也不是一个拥有者
+### 举例
+```c++
+void f()
+{
+    int& r = *new int{7};  // bad: raw owning reference
+    // ...
+    delete &r;             // bad: violated the rule against deleting rawpointers
+}
+```
 
 ## R4. 避免使用malloc 及 free，同时，不要混用malloc 及delete
 ### 为什么
 因为malloc及free不支持构造与析构
+### 举例
+```c++
+class Record {
+        int id;
+        string name;
+        // ...
+    };
+
+void use()
+{
+    // p1 might be nullptr
+    // *p1 is not initialized; in particular,
+    // that string isn't a string, but astring-sized bag of bits
+    Record* p1 = static_cast<Record*>(mallo(sizeof(Record)));
+    auto p2 = new Record;
+    // unless an exception is thrown, *p2 isdefault initialized
+    auto p3 = new(nothrow) Record;
+    // p3 might be nullptr; if not, *p3 isdefault initialized
+    // ...
+    delete p1;    // error: cannot delete objectallocated by malloc()
+    free(p2);    // error: cannot free() objectallocated by new
+}
+```
 
 ## R5. 避免显式的调用new及delete
 ### 为什么
-new返回的指针应该赋值给资源handle对象（能调用delete），如果new的返回值，赋值给一个裸指针，那么就可能出现资源泄漏。
+new返回的指针应该赋值给资源handle对象（仅有的能调用delete的对象），如果new的返回值，赋值给一个裸指针，那么就可能出现资源泄漏。
 ### 注
-一个大型程序中，如果delete出现在application的代码中，而不是资源handle的代码中，那通常是一个bug。因为当你有N个delete后，
-你不能保证不需要新增delete，这样就在维护时，可能引入bug，所以，这种情况，通常就是一个bug。
+一个大型程序中，如果delete出现在application的代码中，而不是资源handle的代码中，那通常是一个bug。因为当你有N个`delete`后，你不能保证不需要新增`delete`，这样就在维护时，可能引入bug，所以，这种情况，通常就是一个bug。
 
 ## R6. 显式的分配资源后，立即将资源赋值给资源管理对象
 ### 为什么
 因为不这样做，资源就可能泄漏
-### 例子，不好的
+### 例子
+    // bad
     void f(const string& name)
     {
         FILE* f = fopen(name, "r");            // open the file
@@ -277,7 +383,8 @@ new返回的指针应该赋值给资源handle对象（能调用delete），如�
         // ...
     }
 buf 分配异常时，会导致file handle没有被close
-### 例子，好
+### 例子
+    // good
     void f(const string& name)
     {
         ifstream f{name};
@@ -285,6 +392,7 @@ buf 分配异常时，会导致file handle没有被close
         // ...
     }
 
+## 智能指针
 ## R7. 使用shared_ptr或者unique_ptr来表示所有权(ownership)
 ### 为什么
 防止资源泄漏
@@ -299,29 +407,33 @@ buf 分配异常时，会导致file handle没有被close
 ## R8. 优先使用unique_ptr, 而不是shared_ptr，除非你需要共享所有权
 ### 为什么
 unique_ptr概念简单，更容易知道什么时候析构，同时，也更快（不需要引用计数）
-#### 举例，不好的
+#### 举例
+    // bad
     void func()
     {
         shared_ptr<base> base = make_shared<Derived>();
         // ... use base locally, without copy it
     }
-### 举例，好的
+### 举例
+    // good
     void func()
     {
         unique_ptr<base> base = make_unique<Derived>();
         // use base locally.
     }
 
-## R9. 使用'make_shared()'来产生'shared_ptr'
+## R9. 使用`make_shared()`来产生`shared_ptr`
 ### 为什么
-'make_shared'让构造的语句更简洁，同时，通过把“shared_ptr”的引用计数靠近它的对象，使用有机会消除引用计数分离分配
-### 例子
-考虑
-    share_ptr<T> p1 {new T();};
-    auto p2 = make_shared<T>();
-'make_shared'语句，其X只出现一次，因此，相较“new”，通常能够更短也更快
+1、`make_shared`仅分配一次内存，`share_ptr`分配两次内存，因此，更高效，同时，内存结构更紧凑
+2、`make_shared`可以防止资源泄漏，而`share_ptr`可能出现。
+
+所以，`make_shared`是默认选择的方式
+### REF
+更详细的解释，请参考：[make_shared vs shared_ptr](https://arne-mertz.de/2018/09/make_shared-vs-the-normal-shared_ptr-constructor/)
+
 ## R10. 使用'make_unique()'来产生'unique_ptr'
 ### ref [同make_shared](#使用make_shared来产生shared_ptr)
+
 ## R11. 仅在显示的表达生命周期语义时，才把智能指针作为参数
 ### 为什么
 1. 传递一个智能指针来转移或者共享所有权，应该只是在包含`所有权`语义时才被使用。若一个函数，并不操作生命周期，那么应该使用裸指针或者引用来传参。
@@ -343,8 +455,8 @@ unique_ptr概念简单，更容易知道什么时候析构，同时，也更快�
 
     // accepts any int
     void h(int&);
-### Example, 不好的
-
+### Example
+    // bad
     // callee
     void f(shared_ptr<widget>& w)
     {
@@ -360,8 +472,8 @@ unique_ptr概念简单，更容易知道什么时候析构，同时，也更快�
     widget stack_widget;
     f(stack_widget); // error
 
-### Example, 好的
-
+### Example
+    // good
     // callee
     void f(widget& w)
     {
@@ -386,17 +498,17 @@ unique_ptr概念简单，更容易知道什么时候析构，同时，也更快�
     void sink(unique_ptr<widget>); // takes ownership of the widget
 
     void uses(widget*);            // just uses the widget
-### 例子，不好的
+### 例子
+    // bad
     void thinko(const unique_ptr<widget>&); // usually not what you want
 ### 注：
-使用`shared_ptr`作为参数时，有同样类似的规则。当函数需要共享所有权时，才使用。
+1. 使用`shared_ptr`作为参数时，有同样类似的规则。当函数需要共享所有权时，才使用。
 
-## R13. 不要传递从一个智能指针的别名获取指针或者引用, // todo
+## R13. 不要传递，从一个智能指针别名对象中获取的指针或者引用
 ### 为什么
 违反这条规则，导致丢失引用计数及空悬指针的第一大原因。
 调用者，通过智能指针，来获取指针或者引用，要保证`object`对象活着。同时，确保智能指针不会在底层的调用链上被无意的`reset`或者`重新赋值`。
-### 注：
-通过把智能指针，拷贝给一个本地临时的智能指针变量，能解决上面的问题。临时的智能指针，保证了对象不会被释放。
+
 ### 例子：
 ```c++
 shared_ptr<widget> g_p = ...;
@@ -421,7 +533,10 @@ void my_code()
     // bad the widget is destroyed.
     g_p->func2();
 }
-
+```
+### 注：
+通过把智能指针，拷贝给一个本地临时的智能指针变量，能解决上面的问题。临时的智能指针，保证了对象不会被释放。
+```c++
 // to fix this problem
 void my_code()
 {
@@ -470,6 +585,8 @@ D::~D
 this 0x5622500d22f0 B::bar
 
 ```
+### REF
+[cpp core guideline resource management](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#S-resource)
 
 # unique_ptr
 智能指针`unique_ptr`，通过一个指针拥有并管理另外一个对象，当`unique_ptr`离开`scope`时，释放对象。
