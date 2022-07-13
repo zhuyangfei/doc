@@ -54,8 +54,8 @@ lock/unlock, 及 new/delete。**任何时候，调用资源的获取及释放函
     };
 ```
 ### 注：
-1. 任何需要`成对使用的函数`，比如，`AaSysComMsgReceive()`与`AaSysComUserDeregister()`，使用者，都可以/应该封装到一个资源管理(资源handle)类。
-2. 设计类时，如果提供`需要用户配对使用的接口`，如：`init()`与`uninit()`，那么就不是一个好的设计。把对应的功能移到构造与析构中，是一个更好的设计。
+1. 任何需要`成对使用的函数`，比如，`AaSysComEuUserRegister`与`AaSysComUserDeregister()`，`使用者`，都可以/应该封装到一个资源管理(资源handle)类。
+2. 设计类时，如果提供`需要用户配对使用的接口`，如：`init()`与`uninit()`，那么可能就不是一个好的设计。把对应的功能移到构造与析构中，是一个更好的设计。
 ### 举例
 ```c++
 // application code
@@ -595,7 +595,7 @@ int main()
     std::cout << "scenario2 a shared_ptr be reset in a subfunction\n";
     {
         std::shared_ptr<B> b = std::make_shared<D>();
-        std::shared_ptr<B> d& = b;      // define an alias
+        std::shared_ptr<B>& d = b;      // define an alias
         h(b);
         g(d);       // Segmentation fault
     }
