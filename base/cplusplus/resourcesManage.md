@@ -54,8 +54,8 @@ lock/unlock, 及 new/delete。**任何时候，调用资源的获取及释放函
     };
 ```
 ### 注：
-1. 任何需要`成对使用的函数`，比如，`AaSysComMsgReceive()`与`AaSysComUserDeregister()`，使用者，都可以/应该封装到一个资源管理(资源handle)类。
-2. 设计类时，如果提供`需要用户配对使用的接口`，如：`init()`与`uninit()`，那么就不是一个好的设计。把对应的功能移到构造与析构中，是一个更好的设计。
+1. 任何需要`成对使用的函数`，比如，`AaSysComEuUserRegister`与`AaSysComUserDeregister()`，`使用者`，都可以/应该封装到一个资源管理(资源handle)类。
+2. 设计类时，如果提供`需要用户配对使用的接口`，如：`init()`与`uninit()`，那么可能就不是一个好的设计。把对应的功能移到构造与析构中，是一个更好的设计。
 ### 举例
 ```c++
 // application code
@@ -424,8 +424,8 @@ unique_ptr概念简单，更容易知道什么时候析构，同时，也更快�
 
 ## R9. 使用`make_shared()`来产生`shared_ptr`
 ### 为什么
-1、`make_shared`仅分配一次内存，`share_ptr`分配两次内存，因此，更高效，同时，内存结构更紧凑
-2、`make_shared`可以防止资源泄漏，而`share_ptr`可能出现。
+1. `make_shared`仅分配一次内存，`share_ptr`分配两次内存，因此，更高效，同时，内存结构更紧凑
+2. `make_shared`可以防止资源泄漏，而`share_ptr`可能出现。
 
 所以，`make_shared`是默认选择的方式
 ### REF
@@ -499,8 +499,9 @@ unique_ptr概念简单，更容易知道什么时候析构，同时，也更快�
 
     void uses(widget*);            // just uses the widget
 ### 例子
-    // bad
+    // not recommend
     void thinko(const unique_ptr<widget>&); // usually not what you want
+    // 表示thinko，不会改变`widget`的所有权
 ### 注：
 1. 使用`shared_ptr`作为参数时，有同样类似的规则。当函数需要共享所有权时，才使用。
 
@@ -570,19 +571,45 @@ void func(std::shared_ptr<B>& b)
     b = std::make_shared<B>();
 }
 
+void h(std::shared_ptr<B>& b)
+{   // a reset operator
+    b.reset();
+}
+
+void g(const std::shared_ptr<B>& b)
+{
+    b->bar();
+}
+
 int main()
 {
-    std::shared_ptr<B> b = std::make_shared<D>();
+    std::cout << "scenario1 a shared_ptr be assigned in a subfunction\n";
+    {
+        std::shared_ptr<B> b = std::make_shared<D>();
 
-    func(b);    // this has been destroyed.
+        func(b);    // pointer "this" has been destroyed.
 
-    b->bar();   // this is different from previous.
+        b->bar();   // pointer "this" is different from previous.
+    }
+
+    std::cout << "scenario2 a shared_ptr be reset in a subfunction\n";
+    {
+        std::shared_ptr<B> b = std::make_shared<D>();
+        std::shared_ptr<B>& d = b;      // define an alias
+        h(b);
+        g(d);       // Segmentation fault
+    }
 }
 // the execute result
+scenario1 a shared_ptr be assigned in a subfunction
 D::D
-this 0x5622500d1ec0 D::bar
+this 0x56182f6fc2d0 D::bar
 D::~D
-this 0x5622500d22f0 B::bar
+this 0x56182f6fc2f0 B::bar
+scenario2 a shared_ptr be reset in a subfunction
+D::D
+D::~D
+Segmentation fault
 
 ```
 ### REF
