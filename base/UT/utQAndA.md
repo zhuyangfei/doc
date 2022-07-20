@@ -1,5 +1,22 @@
 # Q&A
 
+- [Q&A](#qa)
+  - [1. 写UT时，发现很难进行测试？](#1-写ut时发现很难进行测试)
+    - [注：](#注)
+    - [依赖注入Dependency Injection](#依赖注入dependency-injection)
+    - [注：](#注-1)
+  - [2. 基类的构造函数，需要重新实现吗？](#2-基类的构造函数需要重新实现吗)
+    - [注：](#注-2)
+  - [3. 对象B只使用对象A的部分接口，如何mockA？](#3-对象b只使用对象a的部分接口如何mocka)
+  - [4. 类之间组合关系、聚合关系、依赖关系，如何设计与选择？](#4-类之间组合关系聚合关系依赖关系如何设计与选择)
+    - [注：](#注-3)
+  - [5. 一个module/class一个test bin，还是所有模块，一个test bin？](#5-一个moduleclass一个test-bin还是所有模块一个test-bin)
+  - [6. 如何注入mock对象(适用已经发布的模块)，进行测试？](#6-如何注入mock对象适用已经发布的模块进行测试)
+    - [例子](#例子)
+  - [7. 如何进行mock，才能共享mock对象？](#7-如何进行mock才能共享mock对象)
+  - [同问题：被测对象的所有依赖，放到一个mock对象里面，还是每个依赖一个mock对象?](#同问题被测对象的所有依赖放到一个mock对象里面还是每个依赖一个mock对象)
+  - [8. 库接口的设计者，为什么要提供mockable测试对象？](#8-库接口的设计者为什么要提供mockable测试对象)
+
 ## 1. 写UT时，发现很难进行测试？
 这个问题，同UT框架及编程方式直接相关。
 比如，gtest，其`mock对象`能够实现替换`真实对象`主要技术手段就是`依赖注入`与`运行时多态`。gmock例子：
@@ -38,8 +55,8 @@ public:
    TurtleUser(Turtle& turtle);      // interface turtle be injected to Turtle user
    void drawTurtle()
    {
-        m_turtle.up();
-        m_turtle.down();
+        m_turtle.PenUp();
+        m_turtle.PenDown();
    }
 private:
    Turtle& m_turtle;
@@ -156,7 +173,7 @@ class A
 public:
     void funcA()
     {
-        B::instance()->func();
+        B::instance().func();
     }
 };
 ```
@@ -243,20 +260,6 @@ ut bin通过链接A.cpp、B.cpp、C.cpp, 并不需要重新实现构造函数，
    A：可以链接三方库，但是，被调用三方库的接口，需要被mock。
 2. 更好的实践，可以把所有源cpp文件编译成一个内部的la, 这样test code与product code的Makefile可以更简洁。
 3. 通用技巧：tst链接源实现，只mock使用的接口
-### 注：
-一个待求证的技巧，
-定义一个`protected的默认构造`, 可以简化UT的mock对象的实现
-```c++
-class A
-{
-public:
-    explicit A (int i);
-    virtual ~A() = default;
-    ...
-protected:
-    A() = default;      // a protected default constructor for UT
-}
-```
 
 ## 3. 对象B只使用对象A的部分接口，如何mockA？
 只mock A的被使用的接口，通过链接源实现，未调用到的接口不需要mock。
@@ -299,7 +302,7 @@ class B
 {
     void func() {A a; a.funcA()};             // method 1
     void func2() {getInstanceA()->funcA();}  // method 2, getInstanceA to get a singleton objectA
-    void func3(const A& a){a->funcA();}      // method 3, ok for ut
+    void func3(const A& a){a.funcA();}      // method 3, ok for ut
 }
 ```
 组合关系与依赖关系，大多数情况，都是很难进行UT。
@@ -351,7 +354,7 @@ class B
 ```
 app/user 调用`TimerFD(FDMonitor& fdMonitor)`创建TimerFD对象，UT中，通过`TimerFD::TimerFD(System& system, FDMonitor& fdMonitor)`创建TimerFD对象。
 设计上，满足使用者，或许对`TimerFD`实现上依赖的`system`对象并不关心的需求，同时，又提高代码的可测试性。
-## 例子
+### 例子
 [Tuomo injecting mock video tutorial](https://web.yammer.com/main/org/nokia.com/threads/eyJfdHlwZSI6IlRocmVhZCIsImlkIjoiMTc3NTAzMzU2OTc2MzMyOCJ9)
 [genapi TimerFD](https://gitlabe1.ext.net.nokia.com/genapi/genapi/-/blob/master/src/TimerFD.cpp)
 
@@ -385,7 +388,7 @@ app/user 调用`TimerFD(FDMonitor& fdMonitor)`创建TimerFD对象，UT中，通�
 `MsgRTOS`模块，仅存在一个`MsgRTOSMock.hpp`，其他使用了MsgRTOS模块的被测对象，都引用`MsgRTOSMock.hpp`对象进行注入。
 一开始，`MsgRTOSMock.hpp`只会mock，当前被使用的接口。随着开发的深入，`MsgRTOSMock.hpp`就会累积支持所有`MsgRTOS`的接口，后续UT时，就能复用前人的成果了。
 
-## 7. 库接口的设计者，为什么要提供mockable测试对象？
+## 8. 库接口的设计者，为什么要提供mockable测试对象？
 如果不提供一个mockable的测试对象，那么在库接口更新时，用户的测试代码会因为继承接口强耦合性而出现编译问题。
 使用场景如下：
 ```c++
