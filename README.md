@@ -5,3 +5,4 @@
 - [resouresManage](./base/cplusplus/resourcesManage.md)
 - [gitUage](./swDev/git/gitUsage.md)
 - [ut Q&A](./base/UT/utQAndA.md)
+- [git commit log](./swDev/git/commitlog.md)
