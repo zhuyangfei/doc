@@ -1,6 +1,13 @@
 # posixProgram
 
+[POSIX](#posix)
 [pthread mutex](#pthread-mutex)
+
+## POSIX
+POSIX（Portable Operating System Interface）是关于规则与指令的一系列`标准`，定义了application与UNIX操作系统的接口。
+为了实现UNIX 程序能在不同的UNIX平台上运行。
+### REF
+[What is POSIX? Why Does it Matter to Linux/UNIX Users?](https://itsfoss.com/posix/)
 
 ## pthread Mutex
 ### attribute protocol
