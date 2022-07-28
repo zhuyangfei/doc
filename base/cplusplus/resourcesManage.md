@@ -759,5 +759,12 @@ void main()
 构造顺序：析构顺序，a->b->c
 析构顺序：c->b-a;
 
+## [storage duration](https://en.cppreference.com/w/cpp/language/storage_duration)
+1. `automatic storage duration`, 对象存储时间，从代码块开始，到结束。如，所有的local对象
+2. `static storage duration`，对象存储时间，从程序启动开始，到程序结束。
+   对象在程序中是唯一的。包括namespace中申明的对象，申明为`static`及`extern`的对象。
+3. `thread storage duration`，对象存储时间，从线程启动开始，到线程结束为止。
+   每个线程中，都有自己的对象实体。只有申明为`thread_local`的变量，具有`thread storage duration`。
+4. `dynamic storage duration`，通过new创建的对象
 
 
