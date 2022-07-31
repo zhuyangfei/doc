@@ -8,3 +8,4 @@
 - [git commit log](./swDev/git/commitlog.md)
 - [boost usage](./base/boost/boostUsage.md)
 - [posixProgram](./base/posixProgram/posixProgram.md)
+- [wsl usage](./swDev/buildlocal/wslusage.md)
