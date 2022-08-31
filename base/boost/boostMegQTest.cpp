@@ -92,7 +92,7 @@ int main()
     message_queue::remove("rannicMessage_queue");
     message_queue mq(create_only,
             "rannicMessage_queue",
-            1,
+            1,      // max message number in the queue
             MaxMsgLength
         );
     Producer produce(mq);
