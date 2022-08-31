@@ -121,3 +121,7 @@ From <https://askubuntu.com/questions/429848/dmask-and-fmask-mount-options#:%7E:
 
 ## VS code with WSL
 [ Remote - WSL extension documentation](https://code.visualstudio.com/docs/remote/wsl)
+
+## wsl file system
+wsl -> windows: /mnt/c
+windows -> wsl: \\wsl$
