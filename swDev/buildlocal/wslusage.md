@@ -37,7 +37,22 @@ VS code 通过`interactive`方式，WSL remote，因此，配置的启动脚本�
         nameserver 10.10.0.132
 
 [WSL 2 Cisco AnyConnect Networking Workaround](https://gist.github.com/pyther/b7c03579a5ea55fe431561b502ec1ba8)
+### workaround 2: configure wsl network automatically.
+run script in powershell:
+./vpnnet.ps1
 
+[vpnnet.ps1 script](./vpnnet.ps1)
+
+#### note:
+1. fix authority of running vpnnet.ps1
+   Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope CurrentUser
+   for details, refer to : [powershell execution policies](https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_execution_policies?view=powershell-7.2)
+   **error message**
+   ```
+   .\vpnnet.ps1
+   CategoryInfo          : SecurityError: (:) [], PSSecurityException
+   FullyQualifiedErrorId : UnauthorizedAccess
+   ```
 ## docker 运行权限问题
 异常信息：
 `Got permission denied while trying to connect to the Docker daemon socket at`
