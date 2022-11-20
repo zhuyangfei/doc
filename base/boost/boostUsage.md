@@ -25,3 +25,31 @@
 [concurrent programing](https://developer.ibm.com/articles/au-concurrent_boost/)
 [boost message_queue](https://www.boost.org/doc/libs/1_78_0/boost/interprocess/ipc/message_queue.hpp)
 [boost message_queue](https://www.boost.org/doc/libs/1_46_0/doc/html/boost/interprocess/message_queue.html)
+
+## I/O services
+Programs that use Boost.Asio for asynchronous data processing are based on I/O services and I/O objects.
+I/O services abstract the operating system interfaces that process data asynchronously.
+I/O objects initiate asynchronous operations.
+[ioservice](https://theboostcpplibraries.com/boost.asio-io-services-and-io-objects)
+### example
+```c++
+#include <boost/asio/io_service.hpp>
+#include <boost/asio/steady_timer.hpp>
+#include <chrono>
+#include <iostream>
+
+using namespace boost::asio;
+
+int main()
+{
+  io_service ioservice;
+
+  steady_timer timer{ioservice, std::chrono::seconds{3}};
+  timer.async_wait([](const boost::system::error_code &ec)
+    { std::cout << "3 sec\n"; });
+
+  ioservice.run();
+}
+```
+1. callback's thread the same as the ioservice.run(); the callback execution will be stalled by the ioservice.run()'s thread, such as timer's callback happens in 50ms, but there is one second sleep before run `ioservice.run()`;
+2. when callback executes done, then ioservice.run() return
