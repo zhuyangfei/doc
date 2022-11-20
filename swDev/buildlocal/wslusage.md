@@ -41,6 +41,8 @@ VS code 通过`interactive`方式，WSL remote，因此，配置的启动脚本�
 run script in powershell:
 ./vpnnet.ps1
 
+https://github.com/microsoft/WSL/issues/5420
+
 [vpnnet.ps1 script](./vpnnet.ps1)
 
 #### note:
@@ -125,3 +127,6 @@ From <https://askubuntu.com/questions/429848/dmask-and-fmask-mount-options#:%7E:
 ## wsl file system
 wsl -> windows: /mnt/c
 windows -> wsl: \\wsl$
+
+## reference
+1. https://confluence.ext.net.nokia.com/display/NACCI/Docker+Development+in+WSL2#DockerDevelopmentinWSL2-WSL2workaroundwithNokiaVPN
