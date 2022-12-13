@@ -40,9 +40,6 @@ VS code 通过`interactive`方式，WSL remote，因此，配置的启动脚本�
 ### workaround 2: configure wsl network automatically.
 run script in powershell:
 ./vpnnet.ps1
-
-https://github.com/microsoft/WSL/issues/5420
-
 [vpnnet.ps1 script](./vpnnet.ps1)
 
 #### note:
