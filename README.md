@@ -9,3 +9,4 @@
 - [boost usage](./base/boost/boostUsage.md)
 - [posixProgram](./base/posixProgram/posixProgram.md)
 - [wsl usage](./swDev/buildlocal/wslusage.md)
+- [gdb usge](./swDev/gdb.md)
