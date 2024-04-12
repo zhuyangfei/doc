@@ -1,0 +1,231 @@
+From f9203c2115f322db9929df9cc7663a242e2f04bf Mon Sep 17 00:00:00 2001
+From: yanzhu <yangfei.zhu@nokia-sbell.com>
+Date: Fri, 7 Apr 2023 05:37:17 +0000
+Subject: [PATCH 2/4] Add UT cases of CreateFileSuccessIfPVIsNotFull
+
+Change-Id: Icbb6580da5ce3e9852a4b1f98624a7bb2c2b9dc1
+---
+ Services/MsgTrace/TraceFilePVMgr.cpp | 61 ++++++++++++++++++++++++----
+ Services/MsgTrace/TraceFilePVMgr.hpp |  9 +++-
+ tst/Makefile.am                      |  4 +-
+ tst/src/UT_TracePVMgr.cpp            | 52 +++++++++++++++++++++++-
+ 4 files changed, 116 insertions(+), 10 deletions(-)
+
+diff --git a/Services/MsgTrace/TraceFilePVMgr.cpp b/Services/MsgTrace/TraceFilePVMgr.cpp
+index a53be30..58b68f1 100644
+--- a/Services/MsgTrace/TraceFilePVMgr.cpp
++++ b/Services/MsgTrace/TraceFilePVMgr.cpp
+@@ -1,23 +1,70 @@
+ #include "TraceFilePVMgr.hpp"
++#include <filesystem>
++#include <vector>
++#include <algorithm>
++#include "MsgLog.h"
++
++namespace fs = std::filesystem;
+
+ namespace MsgTrace
+ {
+-TraceFilePVMgr::TraceFilePVMgr(const std::string& path, size_t pvSize)
+-    : path(path),
++using std::filesystem::directory_iterator;
++using std::filesystem::directory_iterator;
++
++TraceFilePVMgr::TraceFilePVMgr(const std::string& path, size_t fileSize, size_t pvSize)
++    : TraceFilePVMgr(System::getSystem(), path, fileSize, pvSize)
++{
++}
++
++TraceFilePVMgr::TraceFilePVMgr(System& system, const std::string& path, size_t fileSize, size_t pvSize)
++    : system(system),
++      path(path),
++      maxFileSize(fileSize),
+       pvSize(pvSize)
+ {
+-    // todo
++
+ }
++
+ TraceFilePVMgr::~TraceFilePVMgr()
+ {
+-    // todo
++
+ }
+
+ std::unique_ptr<TraceLogFile> TraceFilePVMgr::getTraceFile(const std::string& fileName, const std::string& cbtsSwVersion)
+ {
+-    // todo
+-    (void)fileName;
+-    (void)cbtsSwVersion;
++    //std::vector<std::string> files = {};
++    size_t sumFileSize = 0;
++    try
++    {
++        directory_iterator directoryIterator(path);
++        for (auto const& dir_entry : directoryIterator)
++        {
++            if (dir_entry.is_directory())
++            {
++                continue;
++            }
++            sumFileSize += dir_entry.file_size();
++        }
++        if (sumFileSize > pvSize - maxFileSize)
++        {
++            // override file
++        }
++    }
++    catch(std::filesystem::filesystem_error& e)
++    {
++        MSGLOG(MSGLOG_ERR, ERadCcs_PrintAaTrace, "%s failed, ad %s", __FUNCTION__, e.what());
++        return std::unique_ptr<TraceLogFile>();
++    }
++
++
++    try
++    {
++        return std::make_unique<TraceLogFile>(system, fileName, cbtsSwVersion);
++    }
++    catch(const TraceLogFile::TraceFileCreateFailed& e)
++    {
++        MSGLOG(MSGLOG_ERR, ERadCcs_PrintAaTrace, "%s", e.what());
++    }
+     return std::unique_ptr<TraceLogFile>();
+ }
+ }
+diff --git a/Services/MsgTrace/TraceFilePVMgr.hpp b/Services/MsgTrace/TraceFilePVMgr.hpp
+index 0c490f4..712595b 100644
+--- a/Services/MsgTrace/TraceFilePVMgr.hpp
++++ b/Services/MsgTrace/TraceFilePVMgr.hpp
+@@ -3,8 +3,11 @@
+ #include <memory>
+ #include <string>
+ #include "TraceLogFile.hpp"
++#include "System.hpp"
+ namespace MsgTrace
+ {
++using MsgMCU::System;
++
+ class TraceFilePVMgr
+ {
+ public:
+@@ -14,7 +17,9 @@ public:
+      * @param path directory to save trace log files
+      * @param pvSize max size for save trace log files
+      */
+-    TraceFilePVMgr(const std::string& path, size_t pvSize);
++    TraceFilePVMgr(const std::string& path, size_t fileSize, size_t pvSize);
++
++    TraceFilePVMgr(System& system, const std::string& path, size_t fileSize, size_t pvSize);
+     virtual ~TraceFilePVMgr();
+     TraceFilePVMgr& operator=(const TraceFilePVMgr&) = delete;
+     TraceFilePVMgr& operator=(TraceFilePVMgr&&) = delete;
+@@ -31,7 +36,9 @@ public:
+      */
+     virtual std::unique_ptr<TraceLogFile> getTraceFile(const std::string& fileName, const std::string& cbtsSwVersion);
+ private:
++    System& system;
+     const std::string& path;
++    const size_t maxFileSize;
+     const size_t pvSize;
+ };
+ }
+diff --git a/tst/Makefile.am b/tst/Makefile.am
+index 7c9397b..55d89a0 100755
+--- a/tst/Makefile.am
++++ b/tst/Makefile.am
+@@ -233,7 +233,9 @@ UT_StartupTrace_SOURCES = \
+            $(top_srcdir)/tst/stubs/SystemMock.cpp \
+            $(top_srcdir)/src/System.cpp \
+            $(top_srcdir)/tst/stubs/StubMsgLog.cpp \
+-           src/UT_TracePVMgr.cpp
++           src/UT_TracePVMgr.cpp \
++           $(top_srcdir)/Services/MsgTrace/TraceFilePVMgr.cpp
++
+
+
+ UT_StartupTrace_CXXFLAGS = $(ut_BASE_CXXFLAGS)
+diff --git a/tst/src/UT_TracePVMgr.cpp b/tst/src/UT_TracePVMgr.cpp
+index 44ae307..78fd338 100644
+--- a/tst/src/UT_TracePVMgr.cpp
++++ b/tst/src/UT_TracePVMgr.cpp
+@@ -1,21 +1,60 @@
++#include <map>
++#include <type_traits>
++#include <filesystem>
++#include <string>
++#include <fstream>
++#include <iostream>
+ #include "CppUTest/TestHarness.h"
+ #include "CppUTestExt/MockSupport.h"
+ #include "TraceFilePVMgr.hpp"
+-#include <type_traits>
++#include "SystemMock.hpp"
+
+ using MsgTrace::TraceFilePVMgr;
++namespace fs = std::filesystem;
++using MsgMCUTest::SystemMock;
+
+ TEST_GROUP(TracePVMgrTest)
+ {
+     void setup()
+     {
++        fs::create_directory(path);
+     }
+
+     void teardown()
+     {
++        fs::remove_all(path);
+         mock().checkExpectations();
+         mock().clear();
+     }
++    SystemMock systemMock;
++    const std::string path = "/tmp/startupTraceTest";
++    const std::size_t pvSize = 64;
++    std::map<std::string, size_t> files;
++    std::string file = "/tmp/startupTraceTest/test.atr.tmp";
++    const std::string cbSwVersion = "1.0.0.1";
++    int traceFd = 1;
++    const int fileSize = 16;
++    void expectCreateTraceLog()
++    {
++        mock().expectOneCall("fopen").ignoreOtherParameters().andReturnValue(&traceFd);
++        mock().expectOneCall("fclose").ignoreOtherParameters();
++    }
++    void expectNoDeleteHappen()
++    {
++        for(const auto& [fileName, fileSize] : files)
++        {
++            CHECK(fs::exists(fileName));
++        }
++    }
++    void createTestFile()
++    {
++        for(const auto& [name, fileSize] : files)
++        {
++            std::ofstream traceFile(name, std::ios::binary);
++            std::string msg(fileSize, 'a');
++            traceFile << msg;
++        }
++    }
+ };
+
+ TEST(TracePVMgrTest, TraceFilePVMgrShouldNoCopyableAndMoveable)
+@@ -25,3 +64,14 @@ TEST(TracePVMgrTest, TraceFilePVMgrShouldNoCopyableAndMoveable)
+     CHECK_FALSE(std::is_trivially_move_constructible<TraceFilePVMgr>::value);
+     CHECK_FALSE(std::is_trivially_move_assignable<TraceFilePVMgr>::value);
+ }
++
++TEST(TracePVMgrTest, getTraceFileShouldCreateFileSuccessIfPVIsNotFull)
++{
++    expectCreateTraceLog();
++    files.emplace(std::make_pair(std::string("/tmp/startupTraceTest/startupSysComTrace-123.atr.tmp"), fileSize));
++    files.emplace(std::make_pair(std::string("/tmp/startupTraceTest/startupSysComTrace-124.atr.tmp"), fileSize));
++    createTestFile();
++    TraceFilePVMgr pvMgr(systemMock, path, fileSize, pvSize);
++    CHECK(pvMgr.getTraceFile(file, cbSwVersion) != nullptr);
++    expectNoDeleteHappen();
++}
+--
+2.25.1
+

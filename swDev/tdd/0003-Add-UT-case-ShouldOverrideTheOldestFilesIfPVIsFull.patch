@@ -1,0 +1,232 @@
+From f4e9406aaf783e55f1c09f7d83319593db276185 Mon Sep 17 00:00:00 2001
+From: yanzhu <yangfei.zhu@nokia-sbell.com>
+Date: Fri, 7 Apr 2023 10:32:52 +0000
+Subject: [PATCH 3/4] Add UT case ShouldOverrideTheOldestFilesIfPVIsFull
+
+Change-Id: I4e7ee16e4ae7984c46899d204502b26cd481a7ec
+---
+ Services/MsgTrace/TraceFilePVMgr.cpp | 71 ++++++++++++++++++++++++++--
+ Services/MsgTrace/TraceFilePVMgr.hpp |  9 ++++
+ tst/src/UT_TracePVMgr.cpp            | 30 +++++++++++-
+ 3 files changed, 104 insertions(+), 6 deletions(-)
+
+diff --git a/Services/MsgTrace/TraceFilePVMgr.cpp b/Services/MsgTrace/TraceFilePVMgr.cpp
+index 58b68f1..b78b844 100644
+--- a/Services/MsgTrace/TraceFilePVMgr.cpp
++++ b/Services/MsgTrace/TraceFilePVMgr.cpp
+@@ -11,6 +11,8 @@ namespace MsgTrace
+ using std::filesystem::directory_iterator;
+ using std::filesystem::directory_iterator;
+
++
++
+ TraceFilePVMgr::TraceFilePVMgr(const std::string& path, size_t fileSize, size_t pvSize)
+     : TraceFilePVMgr(System::getSystem(), path, fileSize, pvSize)
+ {
+@@ -32,22 +34,30 @@ TraceFilePVMgr::~TraceFilePVMgr()
+
+ std::unique_ptr<TraceLogFile> TraceFilePVMgr::getTraceFile(const std::string& fileName, const std::string& cbtsSwVersion)
+ {
+-    //std::vector<std::string> files = {};
+     size_t sumFileSize = 0;
++    size_t overrideFilesLength = 0u;
++    std::vector<LogNameAndSize> overrideFiles;
+     try
+     {
+-        directory_iterator directoryIterator(path);
+-        for (auto const& dir_entry : directoryIterator)
++        for (auto const& dir_entry : directory_iterator{path})
+         {
+             if (dir_entry.is_directory())
+             {
+                 continue;
+             }
+             sumFileSize += dir_entry.file_size();
++            if (dir_entry.path().extension()==".tmp")
++            {
++                overrideFiles.emplace(overrideFiles.end(), LogNameAndSize{dir_entry.path().string(), dir_entry.file_size()});
++                overrideFilesLength += dir_entry.file_size();
++            }
+         }
+         if (sumFileSize > pvSize - maxFileSize)
+         {
+-            // override file
++            if (!removeOldestFilesToGetSpace(overrideFiles, overrideFilesLength))
++            {
++                return std::unique_ptr<TraceLogFile>();
++            }
+         }
+     }
+     catch(std::filesystem::filesystem_error& e)
+@@ -56,7 +66,6 @@ std::unique_ptr<TraceLogFile> TraceFilePVMgr::getTraceFile(const std::string& fi
+         return std::unique_ptr<TraceLogFile>();
+     }
+
+-
+     try
+     {
+         return std::make_unique<TraceLogFile>(system, fileName, cbtsSwVersion);
+@@ -67,4 +76,56 @@ std::unique_ptr<TraceLogFile> TraceFilePVMgr::getTraceFile(const std::string& fi
+     }
+     return std::unique_ptr<TraceLogFile>();
+ }
++
++bool TraceFilePVMgr::removeOldestFilesToGetSpace(std::vector<LogNameAndSize>& overrideFiles, size_t overrideFilesLength)
++{
++    if (overrideFilesLength > maxFileSize)
++    {
++        if (overrideFiles.size() == 1)
++        {
++            unregisterFileAndRemove(overrideFiles[0].name);
++        }
++        else
++        {
++            if (overrideFiles.size() >= 2)
++            {
++                std::sort(overrideFiles.begin(), overrideFiles.end(), [](const LogNameAndSize& log1, const LogNameAndSize log2)
++                                            {
++                                                return log1.name < log2.name;
++                                            });
++            }
++            size_t fileSizeNeed = maxFileSize;
++            for (const auto& [name, size]: overrideFiles)
++            {
++                if (fileSizeNeed > size)
++                {
++                    unregisterFileAndRemove(name);
++                    fileSizeNeed = fileSizeNeed - size;
++                    continue;
++                }
++                else
++                {
++                    unregisterFileAndRemove(name);
++                    break;
++                }
++            }
++        }
++        return true;
++    }
++
++    MSGLOG(MSGLOG_INFO, ERadCcs_PrintAaTrace, "%s remove all override-able files , the total length of files is %u", __FUNCTION__, overrideFilesLength);
++    for (const auto& [name, size]: overrideFiles)
++    {
++        unregisterFileAndRemove(name);
++    }
++    MSGLOG(MSGLOG_WARNING, ERadCcs_PrintAaTrace, "%s PV is full and no enough space to create a new trace log file", __FUNCTION__);
++    return false;
++}
++
++void TraceFilePVMgr::unregisterFileAndRemove(const std::string& fileName)
++{
++    // todo unregister file
++    fs::remove(fileName);
++}
++
+ }
+diff --git a/Services/MsgTrace/TraceFilePVMgr.hpp b/Services/MsgTrace/TraceFilePVMgr.hpp
+index 712595b..a0767f3 100644
+--- a/Services/MsgTrace/TraceFilePVMgr.hpp
++++ b/Services/MsgTrace/TraceFilePVMgr.hpp
+@@ -2,6 +2,7 @@
+ #define SERVICES_MSGTRACE_TRACEFILEPVMGR_HPP
+ #include <memory>
+ #include <string>
++#include <vector>
+ #include "TraceLogFile.hpp"
+ #include "System.hpp"
+ namespace MsgTrace
+@@ -11,10 +12,16 @@ using MsgMCU::System;
+ class TraceFilePVMgr
+ {
+ public:
++    struct LogNameAndSize
++    {
++        std::string name;
++        std::size_t size;
++    };
+     /**
+      * @brief Construct a new Trace File Persistent Volume Management object
+      *
+      * @param path directory to save trace log files
++     * @param fileSize max size for a trace log files
+      * @param pvSize max size for save trace log files
+      */
+     TraceFilePVMgr(const std::string& path, size_t fileSize, size_t pvSize);
+@@ -40,6 +47,8 @@ private:
+     const std::string& path;
+     const size_t maxFileSize;
+     const size_t pvSize;
++    bool removeOldestFilesToGetSpace(std::vector<LogNameAndSize>& overrideFiles, size_t overrideFilesLength);
++    void unregisterFileAndRemove(const std::string& fileName);
+ };
+ }
+ #endif
+\ No newline at end of file
+diff --git a/tst/src/UT_TracePVMgr.cpp b/tst/src/UT_TracePVMgr.cpp
+index 78fd338..7789d27 100644
+--- a/tst/src/UT_TracePVMgr.cpp
++++ b/tst/src/UT_TracePVMgr.cpp
+@@ -4,6 +4,7 @@
+ #include <string>
+ #include <fstream>
+ #include <iostream>
++#include <vector>
+ #include "CppUTest/TestHarness.h"
+ #include "CppUTestExt/MockSupport.h"
+ #include "TraceFilePVMgr.hpp"
+@@ -39,13 +40,17 @@ TEST_GROUP(TracePVMgrTest)
+         mock().expectOneCall("fopen").ignoreOtherParameters().andReturnValue(&traceFd);
+         mock().expectOneCall("fclose").ignoreOtherParameters();
+     }
+-    void expectNoDeleteHappen()
++    void expectFilesExists()
+     {
+         for(const auto& [fileName, fileSize] : files)
+         {
+             CHECK(fs::exists(fileName));
+         }
+     }
++    void expectNoDeleteHappen()
++    {
++        expectFilesExists();
++    }
+     void createTestFile()
+     {
+         for(const auto& [name, fileSize] : files)
+@@ -55,6 +60,16 @@ TEST_GROUP(TracePVMgrTest)
+             traceFile << msg;
+         }
+     }
++
++    void expectOverrideFiles(std::vector<std::string> logs)
++    {
++        for(const auto& name : logs)
++        {
++            files.erase(files.find(name));
++            CHECK_FALSE(fs::exists(name));
++        }
++        expectFilesExists();
++    }
+ };
+
+ TEST(TracePVMgrTest, TraceFilePVMgrShouldNoCopyableAndMoveable)
+@@ -75,3 +90,16 @@ TEST(TracePVMgrTest, getTraceFileShouldCreateFileSuccessIfPVIsNotFull)
+     CHECK(pvMgr.getTraceFile(file, cbSwVersion) != nullptr);
+     expectNoDeleteHappen();
+ }
++
++TEST(TracePVMgrTest, getTraceFileShouldOverrideTheOldestFilesIfPVIsFull)
++{
++    expectCreateTraceLog();
++    files.emplace(std::make_pair(std::string("/tmp/startupTraceTest/startupSysComTrace-123.atr.tmp"), fileSize));
++    files.emplace(std::make_pair(std::string("/tmp/startupTraceTest/startupSysComTrace-124.atr.tmp"), fileSize));
++    files.emplace(std::make_pair(std::string("/tmp/startupTraceTest/startupSysComTrace-125.atr.tmp"), fileSize));
++    files.emplace(std::make_pair(std::string("/tmp/startupTraceTest/startupSysComTrace-126.atr.tmp"), fileSize));
++    createTestFile();
++    TraceFilePVMgr pvMgr(systemMock, path, fileSize, pvSize);
++    CHECK(pvMgr.getTraceFile(file, cbSwVersion) != nullptr);
++    expectOverrideFiles(std::vector<std::string>{"/tmp/startupTraceTest/startupSysComTrace-123.atr.tmp"});
++}
+--
+2.25.1
+

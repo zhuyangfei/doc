@@ -1,0 +1,85 @@
+From f7862240b89956d5088e6cebed53d9b33bd2889a Mon Sep 17 00:00:00 2001
+From: yanzhu <yangfei.zhu@nokia-sbell.com>
+Date: Thu, 6 Apr 2023 11:51:25 +0000
+Subject: [PATCH 1/4] TraceFilePVMgrShouldNoCopyableAndMoveable
+
+Change-Id: I51b75272b0f7e7c709dacc2653292f0b6141cb35
+---
+ Services/MsgTrace/TraceFilePVMgr.hpp |  4 ++--
+ tst/Makefile.am                      |  3 ++-
+ tst/src/UT_TracePVMgr.cpp            | 27 +++++++++++++++++++++++++++
+ 3 files changed, 31 insertions(+), 3 deletions(-)
+ create mode 100644 tst/src/UT_TracePVMgr.cpp
+
+diff --git a/Services/MsgTrace/TraceFilePVMgr.hpp b/Services/MsgTrace/TraceFilePVMgr.hpp
+index 7df06b4..0c490f4 100644
+--- a/Services/MsgTrace/TraceFilePVMgr.hpp
++++ b/Services/MsgTrace/TraceFilePVMgr.hpp
+@@ -15,7 +15,7 @@ public:
+      * @param pvSize max size for save trace log files
+      */
+     TraceFilePVMgr(const std::string& path, size_t pvSize);
+-    ~TraceFilePVMgr();
++    virtual ~TraceFilePVMgr();
+     TraceFilePVMgr& operator=(const TraceFilePVMgr&) = delete;
+     TraceFilePVMgr& operator=(TraceFilePVMgr&&) = delete;
+     TraceFilePVMgr(const TraceFilePVMgr&) = delete;
+@@ -29,7 +29,7 @@ public:
+      *    if there is no space to create a trace log file, or fail to create,
+      *    then return an empty std::unique_ptr
+      */
+-    std::unique_ptr<TraceLogFile> getTraceFile(const std::string& fileName, const std::string& cbtsSwVersion);
++    virtual std::unique_ptr<TraceLogFile> getTraceFile(const std::string& fileName, const std::string& cbtsSwVersion);
+ private:
+     const std::string& path;
+     const size_t pvSize;
+diff --git a/tst/Makefile.am b/tst/Makefile.am
+index 88622fe..7c9397b 100755
+--- a/tst/Makefile.am
++++ b/tst/Makefile.am
+@@ -232,7 +232,8 @@ UT_StartupTrace_SOURCES = \
+            $(top_srcdir)/Services/MsgTrace/TraceLogFile.cpp \
+            $(top_srcdir)/tst/stubs/SystemMock.cpp \
+            $(top_srcdir)/src/System.cpp \
+-           $(top_srcdir)/tst/stubs/StubMsgLog.cpp
++           $(top_srcdir)/tst/stubs/StubMsgLog.cpp \
++           src/UT_TracePVMgr.cpp
+
+
+ UT_StartupTrace_CXXFLAGS = $(ut_BASE_CXXFLAGS)
+diff --git a/tst/src/UT_TracePVMgr.cpp b/tst/src/UT_TracePVMgr.cpp
+new file mode 100644
+index 0000000..44ae307
+--- /dev/null
++++ b/tst/src/UT_TracePVMgr.cpp
+@@ -0,0 +1,27 @@
++#include "CppUTest/TestHarness.h"
++#include "CppUTestExt/MockSupport.h"
++#include "TraceFilePVMgr.hpp"
++#include <type_traits>
++
++using MsgTrace::TraceFilePVMgr;
++
++TEST_GROUP(TracePVMgrTest)
++{
++    void setup()
++    {
++    }
++
++    void teardown()
++    {
++        mock().checkExpectations();
++        mock().clear();
++    }
++};
++
++TEST(TracePVMgrTest, TraceFilePVMgrShouldNoCopyableAndMoveable)
++{
++    CHECK_FALSE(std::is_trivially_copy_constructible<TraceFilePVMgr>::value);
++    CHECK_FALSE(std::is_trivially_copy_assignable<TraceFilePVMgr>::value);
++    CHECK_FALSE(std::is_trivially_move_constructible<TraceFilePVMgr>::value);
++    CHECK_FALSE(std::is_trivially_move_assignable<TraceFilePVMgr>::value);
++}
+--
+2.25.1
+
