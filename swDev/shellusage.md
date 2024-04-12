@@ -1,7 +1,12 @@
 # shell
 
 ## Table of contents
+- [Table of contents](#table-of-contents)
 - [user scenarios](#user-scenarios)
+  - [parallel execution](#parallel-execution)
+  - [loop](#loop)
+  - [pass arguments](#pass-arguments)
+  - [redirect output](#redirect-output)
 
 ## user scenarios
 ### parallel execution
@@ -38,3 +43,8 @@ mkdir $1
 ```
 $0, is the bash file name
 [pass arguments in bash](https://www.geeksforgeeks.org/bash-script-how-to-use-command-line-arguments/)
+
+### redirect output
+```bash
+exec &>console.log
+```

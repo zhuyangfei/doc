@@ -1,6 +1,28 @@
 # 资源管理
 资源管理的基本目标是不泄漏资源和及时释放资源(不超过需要拥有的时间)
 资源的拥有者负责释放资源
+
+- [`资源`](#资源)
+- [R1. 通过`资源handles`及`RAII`来自动的管理资源](#r1-通过资源handles及raii来自动的管理资源)
+- [R2. 优先选择`域对象`（scoped object），避免不必要的heap对象（heap-allocated）](#r2-优先选择域对象scoped-object避免不必要的heap对象heap-allocated)
+- [R3. 一个裸指针（T\*）不是一个资源的`拥有者`](#r3-一个裸指针t不是一个资源的拥有者)
+- [R4. 避免使用malloc 及 free，同时，不要混用malloc 及delete](#r4-避免使用malloc-及-free同时不要混用malloc-及delete)
+- [R5. 避免显式的调用new及delete](#r5-避免显式的调用new及delete)
+- [R6. 显式的分配资源后，立即将资源赋值给资源管理对象](#r6-显式的分配资源后立即将资源赋值给资源管理对象)
+- [智能指针](#智能指针)
+- [R7. 使用shared\_ptr或者unique\_ptr来表示所有权(ownership)](#r7-使用shared_ptr或者unique_ptr来表示所有权ownership)
+- [R8. 优先使用unique\_ptr, 而不是shared\_ptr，除非你需要共享所有权](#r8-优先使用unique_ptr-而不是shared_ptr除非你需要共享所有权)
+- [R9. 使用`make_shared()`来产生`shared_ptr`](#r9-使用make_shared来产生shared_ptr)
+- [R10. 使用'make\_unique()'来产生'unique\_ptr'](#r10-使用make_unique来产生unique_ptr)
+- [R11. 仅在显示的表达生命周期语义时，才把智能指针作为参数](#r11-仅在显示的表达生命周期语义时才把智能指针作为参数)
+- [R12. 在函数中需要重置`widget`时，才使用`unique_ptr<widget>`作为参数](#r12-在函数中需要重置widget时才使用unique_ptrwidget作为参数)
+- [R13. 不要传递，从一个智能指针别名对象中获取的指针或者引用](#r13-不要传递从一个智能指针别名对象中获取的指针或者引用)
+- [unique\_ptr](#unique_ptr)
+- [weak\_ptr](#weak_ptr)
+- [lifetime](#lifetime)
+- [析构](#析构)
+- [storage duration](#storage-duration)
+
 ## `资源`
 `资源`是任何需要**获取并释放**的对象，比如file handler, memory, socket, lock.
 ## R1. 通过`资源handles`及`RAII`来自动的管理资源
@@ -426,6 +448,17 @@ unique_ptr概念简单，更容易知道什么时候析构，同时，也更快�
 ### 为什么
 1. `make_shared`仅分配一次内存，`share_ptr`分配两次内存，因此，更高效，同时，内存结构更紧凑
 2. `make_shared`可以防止资源泄漏，而`share_ptr`可能出现。
+   ```cpp
+   // parameter evaluation order is not guaranteed
+   // so those procedures is random
+   // - new Widget
+   // - computePriority()  exception happen
+   // - pass widget to std::shared_ptr<Widget>
+   processWidget(std::shared_ptr<Widget>(new Widget),  // widget potential leak, when exception happens on computePriority
+              computePriority());
+   processWidget(std::make_shared<Widget>(),   // widget doesn't leak
+              computePriority());
+   ```
 
 所以，`make_shared`是默认选择的方式
 ### REF
@@ -615,17 +648,17 @@ Segmentation fault
 ### REF
 [cpp core guideline resource management](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#S-resource)
 
-# unique_ptr
+## unique_ptr
 智能指针`unique_ptr`，通过一个指针拥有并管理另外一个对象，当`unique_ptr`离开`scope`时，释放对象。
-## 释放所管理对象的情形：
+### 释放所管理对象的情形：
 1. `unique_ptr`对象析构
 2. `unique_ptr`对象被赋值给另一个指针通过`operator=`或者`reset()`
-## 使用场景
+### 使用场景
 1. 为类对象及包含资源清理的函数，提供`exception`安全的释放资源的保证
 2. 传递对象（具有动态生命周期）的唯一所有权（`ownership`）给函数
 3. 通过函数的返回值，获取对象的所有权
 4. 作为容器的元素指向动态分配的对象
-## note
+### note
 1. `unique_ptr`删除了`拷贝构造`及`拷贝赋值`, 只支持`移动构造`与`移动赋值`
 2. 只有`non-const`的`unique_ptr`能转移所有权，`const unique_ptr`限定了`所管理的对象`生命周期在`unique_ptr`创建的范围。举例：
    ```c++
@@ -727,21 +760,48 @@ Segmentation fault
     ownershipTransferInFunc end
     ```
 3. 定义`std::unique_ptr<D>`，会隐式的转换成`std::unique_ptr<B>`（D继承与B)。`unique_ptr`使用`B`的delete进行析构，所以，如果`B`的析构为非虚的，那么会导致未定义的行为。shared_ptr<B>使用`D`的delete(即使B析构为非虚的函数)，所以不会存在问题。
-## REF
+### REF
 [unique_ptr](https://en.cppreference.com/w/cpp/memory/unique_ptr)
 
-# lifetime
-## reference或pointer指向了一个临时对象，而临时对象释放了，导致异常
-## auto使用，引入了临时变量，导致异常
-## 指针作了一次拷贝，源指针所指对象释放了，导致拷贝后的指针空悬了
-## 规则1 解引用一个无效的指针是错误的
-### 规则1.a 使用一个移动的对象是错误的
-### 规则1.b 给一个声明一个non-null的指针，赋值可能为null的指针是错误的
-### 规则1.c 给non-local指针赋值一个可能指向某对象的（除了null或者global）是错误的
-### 规则 裸指针的算数运算是不允许的，如裸指针`p`及变量`x`，这些运算是错误的，`p+x, x+p, p[x],p+=x, p++, p-x, --p, p--`
-## 规则2 给一个`const`(如一个引用)或者一个`non-local`指针p拷贝一个无效的指针是错误的
-## 规则3 除了一个`指针构造`的`this`参数，把一个无效的指针传给一个函数是错误的，或者如果指针违法的前置条件，或者指针指向一个`non-const`全局`Owner`，一个本地的owner通过引用传参给同一函数的一个non-const， 或者一个的本地的Owner被另一个指针的`pset`引用，被传到了同一个函数。
-## 规则4 函数退出后，若指针所指向的`函数输出`是无效或者违反后置条件，是错误的
+### note:
+- unique_ptr 性能上和raw pointer差不多，reference: effective-modern-cpp
+
+## shared_ptr
+shared_ptr 也支持自定义delete, 而且可以不包含在shared_ptr内
+```cpp
+auto delWidget = [](Widget * ptr){
+    //makesomelog();
+    delete ptr;
+};
+std::unique_ptr<Widget, decltype(delWidget)> ptr1(new Widget(), delWidget);
+std::shared_ptr<Widget> ptr2(new Widget(), delWidget);
+```
+### reference
+https://learning.oreilly.com/library/view/effective-modern-c/9781491908419/ch04.html#use_stdshared_ptr_for_shared-ownership_r
+
+## weak_ptr
+是shared_ptr的补充，通过shared_ptr进行构造，但并不增加引用计数
+
+- 使用场景
+  1. 观察者模式，subject对象，通过weak_ptr来存储observer对象，这样observer销毁后，subject可以检测到
+  2. shared_ptr互相引用对方
+  3. a cache factory
+
+### reference
+https://github.com/CnTransGroup/EffectiveModernCppChinese/blob/master/src/4.SmartPointers/item20.md
+
+## lifetime
+1. reference或pointer指向了一个临时对象，而临时对象释放了，导致异常
+2. auto使用，引入了临时变量，导致异常
+3. 指针作了一次拷贝，源指针所指对象释放了，导致拷贝后的指针空悬了
+### 规则1 解引用一个无效的指针是错误的
+1. 规则1.a 使用一个移动的对象是错误的
+2. 规则1.b 给一个声明一个non-null的指针，赋值可能为null的指针是错误的
+3. 规则1.c 给non-local指针赋值一个可能指向某对象的（除了null或者global）是错误的
+4. 规则 裸指针的算数运算是不允许的，如裸指针`p`及变量`x`，这些运算是错误的，`p+x, x+p, p[x],p+=x, p++, p-x, --p, p--`
+### 规则2 给一个`const`(如一个引用)或者一个`non-local`指针p拷贝一个无效的指针是错误的
+### 规则3 除了一个`指针构造`的`this`参数，把一个无效的指针传给一个函数是错误的，或者如果指针违法的前置条件，或者指针指向一个`non-const`全局`Owner`，一个本地的owner通过引用传参给同一函数的一个non-const， 或者一个的本地的Owner被另一个指针的`pset`引用，被传到了同一个函数。
+### 规则4 函数退出后，若指针所指向的`函数输出`是无效或者违反后置条件，是错误的
 
 ## 析构
 退出`{}`，local变量，按逆构造顺序，依次析构。如：
@@ -766,5 +826,3 @@ void main()
 3. `thread storage duration`，对象存储时间，从线程启动开始，到线程结束为止。
    每个线程中，都有自己的对象实体。只有申明为`thread_local`的变量，具有`thread storage duration`。
 4. `dynamic storage duration`，通过new创建的对象
-
-

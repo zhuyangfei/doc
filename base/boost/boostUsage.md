@@ -53,3 +53,7 @@ int main()
 ```
 1. callback's thread the same as the ioservice.run(); the callback execution will be stalled by the ioservice.run()'s thread, such as timer's callback happens in 50ms, but there is one second sleep before run `ioservice.run()`;
 2. when callback executes done, then ioservice.run() return
+
+## named mutex
+named_mutex named_mtx{open_or_create, "mtx"};
+no robustness, if a app abort without unlock the mutex, then the mutex can't be used by others.

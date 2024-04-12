@@ -1,0 +1,55 @@
+From f20e582d4e06b7f88855e5f2e8c1148d1b2701c7 Mon Sep 17 00:00:00 2001
+From: yanzhu <yangfei.zhu@nokia-sbell.com>
+Date: Fri, 7 Apr 2023 10:37:37 +0000
+Subject: [PATCH 4/4] Add UT
+ CreateFileFailedWhenAllFileLockedBySnapshotAndNoSpaceLeft
+
+Change-Id: Iedd457843e96497909834daba555e249f50f90f5
+---
+ Services/MsgTrace/TraceFilePVMgr.hpp |  8 +++++++-
+ tst/src/UT_TracePVMgr.cpp            | 12 ++++++++++++
+ 2 files changed, 19 insertions(+), 1 deletion(-)
+
+diff --git a/Services/MsgTrace/TraceFilePVMgr.hpp b/Services/MsgTrace/TraceFilePVMgr.hpp
+index a0767f3..11b520c 100644
+--- a/Services/MsgTrace/TraceFilePVMgr.hpp
++++ b/Services/MsgTrace/TraceFilePVMgr.hpp
+@@ -38,8 +38,14 @@ public:
+      * @param fileName file name with an absolute path
+      * @return std::unique_ptr<TraceLogFile>
+      *    if success, then return a std::unique_ptr owns a TraceLogFile.
+-     *    if there is no space to create a trace log file, or fail to create,
++     *    if there is no space for create a trace log file, or fail to create,
+      *    then return an empty std::unique_ptr
++     * @note:
++     *    1. When PV is full, the TraceFilePVMgr will try to override the oldest trace logs files until
++     * have enough space to create a file.
++     *    2. file extension with '.tmp' means this can be override when space is not enough.
++     *    3. file with extension '.atr' means file is locked by snapshot currently,
++     *       which can't be deleted.
+      */
+     virtual std::unique_ptr<TraceLogFile> getTraceFile(const std::string& fileName, const std::string& cbtsSwVersion);
+ private:
+diff --git a/tst/src/UT_TracePVMgr.cpp b/tst/src/UT_TracePVMgr.cpp
+index 7789d27..a6ba144 100644
+--- a/tst/src/UT_TracePVMgr.cpp
++++ b/tst/src/UT_TracePVMgr.cpp
+@@ -103,3 +103,15 @@ TEST(TracePVMgrTest, getTraceFileShouldOverrideTheOldestFilesIfPVIsFull)
+     CHECK(pvMgr.getTraceFile(file, cbSwVersion) != nullptr);
+     expectOverrideFiles(std::vector<std::string>{"/tmp/startupTraceTest/startupSysComTrace-123.atr.tmp"});
+ }
++
++TEST(TracePVMgrTest, getTraceFileShouldCreateFileFailedWhenAllFileLockedBySnapshotAndNoSpaceLeft)
++{
++    files.emplace(std::make_pair(std::string("/tmp/startupTraceTest/startupSysComTrace-123.atr"), fileSize));
++    files.emplace(std::make_pair(std::string("/tmp/startupTraceTest/startupSysComTrace-124.atr"), fileSize));
++    files.emplace(std::make_pair(std::string("/tmp/startupTraceTest/startupSysComTrace-125.atr"), fileSize));
++    files.emplace(std::make_pair(std::string("/tmp/startupTraceTest/startupSysComTrace-126.atr"), fileSize));
++    createTestFile();
++    TraceFilePVMgr pvMgr(systemMock, path, fileSize, pvSize);
++    CHECK(pvMgr.getTraceFile(file, cbSwVersion) == nullptr);
++    expectNoDeleteHappen();
++}
+--
+2.25.1
+

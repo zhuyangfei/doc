@@ -42,13 +42,13 @@
     +++ b/Makefile.am
     @@ -2,6 +2,7 @@ ACLOCAL_AMFLAGS = -I m4
      NAME = syscomrouteproxy
-    
+
      pkglibexec_PROGRAMS = syscomrouteproxy
     +bin_PROGRAMS = syscomrannicprovider
-    
+
      syscomrouteproxy_SOURCES = \
                          src/RouteProcessService.cpp \
-    (1/3) Stage this hunk [y,n,q,a,d,j,J,g,/,e,?]? 
+    (1/3) Stage this hunk [y,n,q,a,d,j,J,g,/,e,?]?
     ```
     通过选择不同的命令，如`y`，接受所有改动，`e`，编辑该改动，来拆分。
     拆分后，同一个文件，就有既有staged的部分，又有unstaged的部分。如：
