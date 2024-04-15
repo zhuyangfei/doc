@@ -1,18 +1,19 @@
 # performance analysis
 
-- [性能问题](#性能问题)
-  - [响应慢，throughput不够](#响应慢throughput不够)
-  - [资源利用率问题](#资源利用率问题)
-    - [CPU利用率](#cpu利用率)
-    - [memory利用率](#memory利用率)
-    - [IO](#io)
-- [分析流程](#分析流程)
+- [performance analysis](#performance-analysis)
+  - [性能问题](#性能问题)
+    - [响应慢，throughput不够](#响应慢throughput不够)
+    - [资源利用率问题](#资源利用率问题)
+      - [CPU利用率](#cpu利用率)
+      - [memory利用率](#memory利用率)
+      - [IO](#io)
+  - [分析流程](#分析流程)
 
 ## 性能问题
 性能问题包括响应慢，throughput不够及资源（如CPU，Memory及IO ）利用率的问题
 
 ### 响应慢，throughput不够
-响应慢，throughput不够，可也能由于：
+响应慢，throughput不够，可能由于：
 - 在I/O上，阻塞等待
   即等待IO可读或者可写
 - I/O处理不及时
@@ -20,6 +21,16 @@
 - 网络
 
 处理这类问题，优秀的实践，如non-block IO + IO复用技术，对应的产品，如boost asio，网络框架库
+- latency
+系统完成一次操作/任务所需要的时间，以时间为单位。如：
+Reading 1 MB from RAM: 0.25 ms
+Reading 1 MB from SSD: 1 ms
+Transfer 1 MB over network: 10 ms
+Inter-continental round trip: 150 ms
+串行处理请求时，任务的平均latency就会变大。因为任务可能被之前的任务block，而得不到及时处理。可以通过使用多线程来降低latency。
+
+- throughput
+系统在一段时间内，能够处理的任务数。如一个server的throughput，可以通过一段时间的请求数来衡量。
 
 ### 资源利用率问题
 #### CPU利用率
