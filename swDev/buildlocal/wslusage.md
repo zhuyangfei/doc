@@ -127,3 +127,25 @@ windows -> wsl: \\wsl$
 
 ## reference
 1. https://confluence.ext.net.nokia.com/display/NACCI/Docker+Development+in+WSL2#DockerDevelopmentinWSL2-WSL2workaroundwithNokiaVPN
+
+## 通过window 代理服务器访问web
+```bash
+# 获取windows的内部ip
+ cat /etc/resolv.conf | grep nameserver | awk '{print $2}'
+
+ #配置代理地址
+ export http_proxy=http://<proxy_address>:<proxy_port>
+ export https_proxy=http://<proxy_address>:<proxy_port>
+
+ #e.g
+ export https_proxy=http://172.28.16.1:7897
+ export http_proxy=http://172.28.16.1:7897
+ 
+ # 测试是否正常工作
+ curl -I https://www.google.com
+
+ # 长期有效
+ echo 'export http_proxy=http://proxy.example.com:8080' >> ~/.bashrc
+ echo 'export https_proxy=http://proxy.example.com:8080' >> ~/.bashrc
+ source ~/.bashrc
+```
