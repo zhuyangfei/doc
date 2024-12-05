@@ -139,7 +139,6 @@ windows -> wsl: \\wsl$
 
  #e.g
  export https_proxy=http://172.28.16.1:7897
- export http_proxy=http://172.28.16.1:7897
 
  # 测试是否正常工作
  curl -I https://www.google.com
@@ -172,3 +171,8 @@ sudo service docker start
 # 测试
 docker ps
 ```
+
+### docker hub
+解决办法：1. 配置daemon proxy，2. 配置repo mirror
+参考：
+https://gist.github.com/y0ngb1n/7e8f16af3242c7815e7ca2f0833d3ea6
