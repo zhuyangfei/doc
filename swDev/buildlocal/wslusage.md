@@ -140,7 +140,7 @@ windows -> wsl: \\wsl$
  #e.g
  export https_proxy=http://172.28.16.1:7897
  export http_proxy=http://172.28.16.1:7897
- 
+
  # 测试是否正常工作
  curl -I https://www.google.com
 
@@ -148,4 +148,27 @@ windows -> wsl: \\wsl$
  echo 'export http_proxy=http://proxy.example.com:8080' >> ~/.bashrc
  echo 'export https_proxy=http://proxy.example.com:8080' >> ~/.bashrc
  source ~/.bashrc
+```
+## Docker usage
+
+### Failed to start service Docker
+
+```bash
+Error starting daemon: Error initializing network controller: error obtaining controller instance: failed to create NAT chain DOCKER: iptables failed: iptables --wait -t nat -N DOCKER: iptables v1.8.2 (nf_tables): CHAIN_ADD failed (No such file or directory): 
+
+```
+
+原因及解决办法，参考：https://github.com/WhitewaterFoundry/Pengwin/issues/485
+```bash
+The docker installer uses iptables for nat. Unfortunately Debian uses a modified version of nftables. You can convert the entries over to nftables or just setup Debian to use the legacy iptables.
+
+sudo update-alternatives --set iptables /usr/sbin/iptables-legacy
+sudo update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
+
+dockerd, should start fine after switching to iptables-legacy.
+
+sudo service docker start
+
+# 测试
+docker ps
 ```
