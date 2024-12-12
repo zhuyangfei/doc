@@ -52,24 +52,6 @@ run script in powershell:
    CategoryInfo          : SecurityError: (:) [], PSSecurityException
    FullyQualifiedErrorId : UnauthorizedAccess
    ```
-## docker 运行权限问题
-异常信息：
-`Got permission denied while trying to connect to the Docker daemon socket at`
-
-解决办法：
-docker守护进程启动的时候，会默认赋予名字为docker的用户组读写Unix socket的权限，因此只要创建docker用户组，
-并将当前用户加入到docker用户组中，那么当前用户就有权限访问Unix socket了，进而也就可以执行docker相关命令。
-```
-sudo groupadd docker     #添加docker用户组
-sudo gpasswd -a $USER docker     #将登陆用户加入到docker用户组中
-newgrp docker     #更新用户组
-docker ps    #测试docker命令是否可以使用sudo正常使用
-```
-[docker 运行权限](https://www.cnblogs.com/Li-JT/p/13994704.html)
-
-## conde build 与docker GID 999冲突
-   修改docker的GID
-[GID](https://www.cnblogs.com/peida/archive/2012/12/05/2802419.html)
 
 ## wsl permission deny
 [Fix Windows Subsystem for Linux (WSL) File Permissions · Brian's Blog (turek.dev)](https://www.turek.dev/posts/fix-wsl-file-permissions/)
@@ -172,7 +154,45 @@ sudo service docker start
 docker ps
 ```
 
+### 启动docker 服务不识别
+```bash
+sudo service docker start
+docker: unrecognized service
+```
+【原因】：WSL2 instance is using the default init system instead of systemd；
+【解决】：wsl --update
+【检查】：`ps -p 1 -o comm=`
+
+### 自启动docker服务
+~/.bashrc
+```bash
+# service docker start
+if ! pgrep -x "dockerd" > /dev/null; then
+    sudo service docker start
+fi
+```
+
+
 ### docker hub
 解决办法：1. 配置daemon proxy，2. 配置repo mirror
 参考：
 https://gist.github.com/y0ngb1n/7e8f16af3242c7815e7ca2f0833d3ea6
+
+### docker 运行权限问题
+异常信息：
+`Got permission denied while trying to connect to the Docker daemon socket at`
+
+解决办法：
+docker守护进程启动的时候，会默认赋予名字为docker的用户组读写Unix socket的权限，因此只要创建docker用户组，
+并将当前用户加入到docker用户组中，那么当前用户就有权限访问Unix socket了，进而也就可以执行docker相关命令。
+```
+sudo groupadd docker     #添加docker用户组
+sudo gpasswd -a $USER docker     #将登陆用户加入到docker用户组中
+newgrp docker     #更新用户组
+docker ps    #测试docker命令是否可以使用sudo正常使用
+```
+[docker 运行权限](https://www.cnblogs.com/Li-JT/p/13994704.html)
+
+### conde build 与docker GID 999冲突
+   修改docker的GID
+[GID](https://www.cnblogs.com/peida/archive/2012/12/05/2802419.html)
