@@ -126,10 +126,29 @@ windows -> wsl: \\wsl$
  curl -I https://www.google.com
 
  # 长期有效
- echo 'export http_proxy=http://proxy.example.com:8080' >> ~/.bashrc
- echo 'export https_proxy=http://proxy.example.com:8080' >> ~/.bashrc
- source ~/.bashrc
+cat ~/.bashrc
+export http_proxy="http://$(cat /etc/resolv.conf | grep nameserver | awk '{print $2}'):7897"
+export https_proxy="http://$(cat /etc/resolv.conf | grep nameserver | awk '{print $2}'):7897"
+export no_proxy="localhost,127.0.0.1,::1
 ```
+
+### 待机后cpu飙升
+- 异常
+  wsl --shutdown 卡住
+- 原因
+  wsl kernel bug
+- 如何解决
+  替换指定版本的kernel
+
+```bash
+cat ~\.wslconfig
+[wsl2]
+kernel=C:\\Users\\burke\\.wsl-kernels\\vmlinuz-msft-5.4.72
+```
+参考：https://github.com/carlfriedrich/wsl-kernel-build/issues/1
+https://github.com/microsoft/WSL/issues/8696#issuecomment-1372751462
+
+
 ## Docker usage
 
 ### Failed to start service Docker
