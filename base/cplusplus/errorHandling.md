@@ -135,3 +135,9 @@ File_handle 的构造可以这样定义：
         lock_guard<mutex> _ {m};
         // ...
     }
+
+## 异常处理策略
+策略1：将error分成由调用者处理（be handled locally）或者只能在调用链上处理；
+be handled locally：通过返回值（错误代码）实现；
+在调用链上处理：通过`exception`实现；
+https://cacm.acm.org/blogcacm/21st-century-c/
