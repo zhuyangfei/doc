@@ -196,6 +196,29 @@ fi
 解决办法：1. 配置daemon proxy，2. 配置repo mirror
 参考：
 https://gist.github.com/y0ngb1n/7e8f16af3242c7815e7ca2f0833d3ea6
+- 方法1：配置daemon proxy
+step1: 编辑daemon配置文件
+```bash
+vi /etc/docker/daemon.json
+{
+    "registry-mirrors": [
+        "https://dockerproxy.com",
+        "https://docker.mirrors.ustc.edu.cn",
+        "https://docker.nju.edu.cn"
+    ],
+    "proxies": {
+        "http-proxy": "http://172.30.32.1:7897",
+        "https-proxy": "http://172.30.32.1:7897",
+        "no-proxy": "localhost,127.0.0.1,::1"
+    }
+}
+
+docker info    #查看docker信息，验证是否生效
+```
+step2: 重启docker服务
+```bash
+sudo systemctl restart docker
+```
 
 ### docker 运行权限问题
 异常信息：
